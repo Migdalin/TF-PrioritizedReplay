@@ -9,13 +9,13 @@ From:
     https://medium.com/@fabiograetz/tutorial-double-deep-q-learning-with-dueling-network-architectures-4c1b3fb7f756
 '''
 class GifSaver:
-    def __init__(self, memory, agent, save_every_x_episodes=100):
+    def __init__(self, memory, agent, save_every_x_episodes):
         self.episode_counter = 0
         self.previous_episode_end = 0
         self.save_every_x_episodes = save_every_x_episodes
         self.memory = memory
         self.agent = agent
-        self.outputDir = "output"
+        self.outputDir = "gifs"
         os.makedirs(self.outputDir, exist_ok=True)
 
     def OnEpisodeOver(self):
@@ -41,13 +41,6 @@ class GifSaver:
         return framesForGif
             
     def _GenerateGif(self, frame_number, frames_for_gif):
-        """
-            Args:
-                frame_number: Integer, determining the number of the current frame
-                frames_for_gif: A sequence of frames of an Atari game (as seen by the network)
-                #reward: Integer, Total reward of the episode 
-                #path: String, path where gif is saved
-        """
         for idx, frame_idx in enumerate(frames_for_gif): 
             frames_for_gif[idx] = resize(frame_idx, (420, 320),
                           mode='constant',

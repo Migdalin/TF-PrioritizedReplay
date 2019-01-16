@@ -24,9 +24,11 @@ ConvArgs.__new__.__defaults__ = (None,) * len(ConvArgs._fields)
 '''
 
 class PerAgent():
-    def __init__(self, action_size, batchHelper, progressTracker):
+    def __init__(self, agentParams, action_size, batchHelper, progressTracker):
         self.session = tf.Session()
-        self.SetDefaultParameters(action_size, batchHelper)
+        self.Params = agentParams
+        self.BatchHelper = batchHelper
+        self.SetDefaultParameters(action_size)
         self.progressTracker = progressTracker
         self.trainingModel = self.BuildModel('trainingModel')
         self.targetModel = self.BuildModel('targetModel')
@@ -34,41 +36,19 @@ class PerAgent():
         self.session.run(tf.global_variables_initializer())
         self.UpdateTargetModel()
     
-    def SetDefaultParameters(self, action_size, batchHelper):
-        self.state_size = DqnGlobals.STATE_DIMENSIONS
+    def SetDefaultParameters(self, action_size):
         self.action_size = action_size
-        self.BatchHelper = batchHelper
-        
-        # parameters about epsilon
-        self.epsilon_start = 1.0
-        self.epsilon = self.epsilon_start
-        self.epsilon_min = 0.05
-        self.epsilon_decay_step = 0.000002
-                                  
-        # parameters about training
-        self._delayTraining = 20000
-        self.update_target_rate = 10000
+        self.epsilon = self.Params.epsilon_start
         self.current_step_count = 0
         self.total_step_count = 0
         self.total_episodes = 0
-        self.gamma = 0.99
-        self.learning_rate = 0.00001
         
     def InitStatsWriter(self):        
         self.statsWriter = tf.summary.FileWriter(f"tensorboard/{int(time())}")
         tf.summary.scalar("Loss", self.trainingModel.cost)
         
-        #        self.averageReward = tf.placeholder(dtype=tf.float32)
-        #        tf.summary.scalar("Average Reward", self.averageReward)
-        #        
-        #        self.longAverageReward = tf.placeholder(dtype=tf.float32)
-        #        tf.summary.scalar("Long Average Reward", self.longAverageReward)
-        #        
-        #        self.maxReward = tf.placeholder(dtype=tf.float32)
-        #        tf.summary.scalar("Max Reward", self.maxReward)
-        
         self.writeStatsOp = tf.summary.merge_all()
-        self.next_summary_checkpoint = self._delayTraining
+        self.next_summary_checkpoint = self.Params.delayTraining
         
     def BuildConv2D(self, convArgs, modelName):
         with tf.variable_scope(modelName):
@@ -181,7 +161,7 @@ class PerAgent():
             updatedPriorities = tf.reduce_sum(tf.abs(targetQ - filteredOutput), axis=1)
             
             optimizer = tf.train.AdamOptimizer(
-                    learning_rate=self.learning_rate).minimize(cost)
+                    learning_rate=self.Params.learning_rate).minimize(cost)
 
             modelInfo = ModelInfo(modelName=modelName,
                                   frames=frames, 
@@ -197,10 +177,10 @@ class PerAgent():
     
     # get action from model using epsilon-greedy policy
     def GetAction(self):
-        if self.epsilon > self.epsilon_min:
-            self.epsilon -= self.epsilon_decay_step
+        if(self.epsilon > self.Params.epsilon_min):
+            self.epsilon -= self.Params.epsilon_decay_step
         
-        if random.random() <= self.epsilon:
+        if(random.random() <= self.epsilon):
             return random.randrange(self.action_size)
 
         curState = self.BatchHelper.GetCurrentState()
@@ -232,7 +212,7 @@ class PerAgent():
         self.statsWriter.flush()
 
     def Replay(self):
-        if(self.total_step_count < self._delayTraining):
+        if(self.total_step_count < self.Params.delayTraining):
             return
         
         #start_states, next_states, actions, rewards, gameOvers
@@ -249,7 +229,7 @@ class PerAgent():
         next_Q_values[batchInfo.gameOvers] = 0
         
         # The Q values of each start state is the reward + gamma * the max next state Q value
-        Q_values = batchInfo.rewards + (self.gamma * np.max(next_Q_values, axis=1))
+        Q_values = batchInfo.rewards + (self.Params.gamma * np.max(next_Q_values, axis=1))
         targetQ = batchInfo.actions * Q_values[:,None]
         
         # Train:
@@ -268,7 +248,7 @@ class PerAgent():
 
         if(self.total_step_count > self.next_summary_checkpoint):
             self.WriteStats(feedDict)
-            self.next_summary_checkpoint = self.update_target_rate + self.total_step_count
+            self.next_summary_checkpoint = self.Params.update_target_rate + self.total_step_count
         
     def UpdateTargetModelInternal(self):
         # Get the parameters of our training network
@@ -305,6 +285,6 @@ class PerAgent():
         self.total_episodes += 1
         self.total_step_count += steps
         self.current_step_count += steps
-        if(self.current_step_count >= self.update_target_rate):
+        if(self.current_step_count >= self.Params.update_target_rate):
             self.UpdateAndSave()
         

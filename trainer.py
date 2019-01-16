@@ -2,7 +2,6 @@
 import os.path
 import numpy as np
 import gym
-import time
 
 from priority_memory import PriorityMemory
 from batch_helper import BatchHelper
@@ -10,6 +9,8 @@ from per_agent import PerAgent
 from dqn_globals import DqnGlobals
 from gif_saver import GifSaver
 from DataModel.progress_tracker import ProgressTracker, ProgressTrackerParms
+from hyper_parameters import StandardAgentParameters, ShortEpisodeParameters, LongEpisodeParameters
+
 
 '''
  Based on agents from rlcode, keon, A.L.Ecoffet, and probably several others
@@ -27,14 +28,20 @@ class ImagePreProcessor:
         return ImagePreProcessor.to_grayscale(shrunk)
 
 class EpisodeManager:
-    def __init__(self, environment, memory, action_size):
+    def __init__(self, environment, memory, action_size, miscParameters):
         self._environment = environment
         self._memory = memory
         batchHelper = BatchHelper(memory, DqnGlobals.BATCH_SIZE, action_size)
         self.progressTracker = ProgressTracker(
                 ProgressTrackerParms(avgPerXEpisodes=10, longAvgPerXEpisodes=100))
-        self._agent = PerAgent(action_size, batchHelper, self.progressTracker)
-        self._gifSaver = GifSaver(memory, self._agent)
+
+        self._agent = PerAgent(StandardAgentParameters, 
+                               action_size, 
+                               batchHelper, 
+                               self.progressTracker)
+        self._gifSaver = GifSaver(memory, 
+                                  self._agent, 
+                                  save_every_x_episodes=miscParameters.createGifEveryXEpisodes)
         
     def ShouldStop(self):
         return os.path.isfile("StopTraining.txt")
@@ -80,23 +87,23 @@ class EpisodeManager:
         return score, stepCount
              
 class Trainer:
-    def Run(self, whichGame):
+    def Run(self, whichGame, miscParams):
         env = gym.make(whichGame)
         print(env.unwrapped.get_action_meanings())
         memory = PriorityMemory()
         num_actions = env.action_space.n
         if('Pong' in whichGame):
             num_actions = 4  # Don't need RIGHTFIRE or LEFTFIRE (do we?)
-        mgr = EpisodeManager(env, memory, action_size = num_actions)
+        mgr = EpisodeManager(env, memory, action_size = num_actions, miscParameters=miscParams)
         mgr.Run()
 
-def Main(whichGame):
+def Main(whichGame, miscParams):
     trainer = Trainer()
-    trainer.Run(whichGame)
+    trainer.Run(whichGame, miscParams)
 
-#cProfile.run("Main('PongDeterministic-v4')", "profilingResults.cprof")
-#Main('PongDeterministic-v4')
-Main('BreakoutDeterministic-v4')
+#cProfile.run("Main('PongDeterministic-v4', )", "profilingResults.cprof")
+#Main('PongDeterministic-v4', LongEpisodeParameters)
+Main('BreakoutDeterministic-v4', ShortEpisodeParameters)
 
 
 
