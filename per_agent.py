@@ -24,9 +24,10 @@ ConvArgs.__new__.__defaults__ = (None,) * len(ConvArgs._fields)
 '''
 
 class PerAgent():
-    def __init__(self, action_size, batchHelper):
+    def __init__(self, action_size, batchHelper, progressTracker):
         self.session = tf.Session()
         self.SetDefaultParameters(action_size, batchHelper)
+        self.progressTracker = progressTracker
         self.trainingModel = self.BuildModel('trainingModel')
         self.targetModel = self.BuildModel('targetModel')
         self.InitStatsWriter()
@@ -56,6 +57,16 @@ class PerAgent():
     def InitStatsWriter(self):        
         self.statsWriter = tf.summary.FileWriter(f"tensorboard/{int(time())}")
         tf.summary.scalar("Loss", self.trainingModel.cost)
+        
+        #        self.averageReward = tf.placeholder(dtype=tf.float32)
+        #        tf.summary.scalar("Average Reward", self.averageReward)
+        #        
+        #        self.longAverageReward = tf.placeholder(dtype=tf.float32)
+        #        tf.summary.scalar("Long Average Reward", self.longAverageReward)
+        #        
+        #        self.maxReward = tf.placeholder(dtype=tf.float32)
+        #        tf.summary.scalar("Max Reward", self.maxReward)
+        
         self.writeStatsOp = tf.summary.merge_all()
         self.next_summary_checkpoint = self._delayTraining
         
@@ -205,6 +216,19 @@ class PerAgent():
     def WriteStats(self, feedDict):
         summary = self.session.run(self.writeStatsOp, feed_dict=feedDict)
         self.statsWriter.add_summary(summary, self.total_step_count)
+
+        summary = tf.Summary()
+        avgEpisodes = self.progressTracker.Parms.avgPerXEpisodes
+        summary.value.add(tag=f'Average Reward ({avgEpisodes} episodes)', 
+                          simple_value=self.progressTracker.GetAverageReward())
+        
+        avgEpisodes = self.progressTracker.Parms.longAvgPerXEpisodes
+        summary.value.add(tag=f'Average Reward ({avgEpisodes} episodes)', 
+                          simple_value=self.progressTracker.GetLongAverageReward())
+        
+        summary.value.add(tag='Max Reward', simple_value=self.progressTracker.GetMaxReward())
+        self.statsWriter.add_summary(summary, self.total_step_count)
+
         self.statsWriter.flush()
 
     def Replay(self):

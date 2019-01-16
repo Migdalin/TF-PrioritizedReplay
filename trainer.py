@@ -9,6 +9,7 @@ from batch_helper import BatchHelper
 from per_agent import PerAgent
 from dqn_globals import DqnGlobals
 from gif_saver import GifSaver
+from DataModel.progress_tracker import ProgressTracker, ProgressTrackerParms
 
 '''
  Based on agents from rlcode, keon, A.L.Ecoffet, and probably several others
@@ -30,28 +31,21 @@ class EpisodeManager:
         self._environment = environment
         self._memory = memory
         batchHelper = BatchHelper(memory, DqnGlobals.BATCH_SIZE, action_size)
-        self._agent = PerAgent(action_size, batchHelper)
+        self.progressTracker = ProgressTracker(
+                ProgressTrackerParms(avgPerXEpisodes=10, longAvgPerXEpisodes=100))
+        self._agent = PerAgent(action_size, batchHelper, self.progressTracker)
         self._gifSaver = GifSaver(memory, self._agent)
         
     def ShouldStop(self):
         return os.path.isfile("StopTraining.txt")
         
     def Run(self):
-        scoreHistory = []
         while(self.ShouldStop() == False):
-            startTime = time.time()
+            self.progressTracker.OnEpisodeStart()
             score, steps = self.RunOneEpisode()
-            elapsedTime = time.time() - startTime
+            self.progressTracker.OnEpisodeOver(score, steps)
             self._agent.OnGameOver(steps)
             self._gifSaver.OnEpisodeOver()
-            totalSteps = self._agent.total_step_count
-            episode = self._agent.total_episodes
-            scoreHistory.append(score)
-            print(f"Episode: {episode};  Score: {score};  Steps: {steps}; Time: {elapsedTime:.2f}")
-            if(len(scoreHistory) == 10):
-                avgScore = np.mean(scoreHistory)
-                print(f"Episode: {episode};  Average Score: {avgScore};  Total Steps:  {totalSteps}")
-                scoreHistory.clear()
         self._agent.OnExit()
 
     def OnNextEpisode(self):
