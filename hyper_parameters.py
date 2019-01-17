@@ -32,7 +32,7 @@ StandardAgentParameters = AgentParameters(
         delayTraining = 20000,
         update_target_rate = 10000,
         gamma = 0.99,
-        learning_rate = 0.00001
+        learning_rate = 0.00025
         )
 
 class MiscParameters:

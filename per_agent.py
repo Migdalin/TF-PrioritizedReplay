@@ -154,13 +154,11 @@ class PerAgent():
                                      shape=((None, self.action_size)), 
                                      name=modelName+'targetQ')
 
-            cost = tf.reduce_sum(weightedIS * tf.losses.huber_loss(targetQ, filteredOutput))
-            #  Simonini calculates it thusly:
-            # cost = tf.reduce_mean(self.ISWeights_ * tf.squared_difference(self.target_Q, self.Q))
+            cost = tf.reduce_sum(weightedIS * tf.squared_difference(targetQ, filteredOutput))
             
             updatedPriorities = tf.reduce_sum(tf.abs(targetQ - filteredOutput), axis=1)
             
-            optimizer = tf.train.AdamOptimizer(
+            optimizer = tf.train.RMSPropOptimizer(
                     learning_rate=self.Params.learning_rate).minimize(cost)
 
             modelInfo = ModelInfo(modelName=modelName,
